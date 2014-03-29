@@ -49,7 +49,7 @@ setnames(agent_dt,old=c("LONGITUDE","LATITUDE","LandUse"),new=c("lon","lat","lan
 g = ggplot()+geom_point(data=agent_dt,aes(lon,lat),colour="lightsalmon",alpha=0.2)
 print(g)
 ```
-The output looks like [this.](https://gist.github.com/hgerard/b0e14c626e731dfb746a#file-rplot01-png) Not that useful yet.
+The output looks like [this.](https://raw.githubusercontent.com/hgera000/GIS_examples/master/R_plotting/Rplot01.png) Not that useful yet.
 
 * The code below adds a google-map background
 
@@ -57,7 +57,7 @@ The output looks like [this.](https://gist.github.com/hgerard/b0e14c626e731dfb74
 google = ggmap(get_map("pakistan",zoom=6,maptype="roadmap"))
 g = google + geom_point(data=agent_dt,aes(lon,lat),colour="lightsalmon",alpha=0.2)
 ```
-and now the map makes a lot more [sense.](https://gist.github.com/hgerard/b0e14c626e731dfb746a#file-rplot02-png) 
+and now the map makes a lot more [sense.](https://raw.githubusercontent.com/hgera000/GIS_examples/master/R_plotting/Rplot02.png) 
 
 * Finally, [ggplot2](http://docs.ggplot2.org/current/) is an extremely flexible package for making nice graphs (and in and of itself is a reason to learn R). The code below, for example, plots agents in Rural versus Urban locations in a different colour, and then presents the two maps side by side. 
 
@@ -70,7 +70,7 @@ print(g)
 dev.off() #close pdf
 ```
 
-The map will be higher definition if saved as pdf, as shown above, but should look something like [this.](https://gist.github.com/hgerard/b0e14c626e731dfb746a#file-rplot03-png)
+The map will be higher definition if saved as pdf, as shown above, but should look something like [this.](https://raw.githubusercontent.com/hgera000/GIS_examples/master/R_plotting/Rplot03.png)
 
 * Ignoring the importing of packages, and renaming of a few variables, it took only 3 or 4 lines of code to make quite a nice looking map. 
 
