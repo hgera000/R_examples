@@ -1,0 +1,197 @@
+---
+title: "Network Analysis in R"
+author: Hugo Gerard
+output: html_document
+---
+
+This gist is designed to be a useful reference to import, transform and do some simple analysis and visualisations on network data in `R`. Some basic network/graph concepts (e.g. nodes and edges) are assumed as is a basic working knowledge of `R` but the comments try and explain what is going on in each step.
+
+The example desribed below works with the `R` package `igraph`. Though there are other packages that are also popular, such as the python package `networkx`. 
+
+It's also worth noting that in my experience, these tools work best with fairly small scale networks. For larger networks (millions of nodes), I would recommend taking a look at [GraphChi](https://github.com/GraphChi) or  [GraphX](https://amplab.cs.berkeley.edu/projects/graphx/), though there are some larger upfront costs to learning these tools. 
+
+## Setup
+
+Network data is usually represented in two formats: [Adjacency-List](https://github.com/GraphChi/graphchi-cpp/wiki/Adjacency-List-Format) or [Edge-list](https://github.com/GraphChi/graphchi-cpp/wiki/Edge-List-Format). In this example I will be working with edge-list data. Personally I find it to be more convenient to work with a graph in this format and `R`'s very flexible 'group by' features work well with data in a long format like this (more on that later). 
+
+A simple toy-example of network data in edge-list format is shown below, which could represent many types of real-world networks. One example could be calls from a phone network, where nodes/vertices are cell-phone IDs and edges represent calls or SMS. This is a directed network with edges going from the Caller to the Receiver. The third field shown below is optional and denotes an edge weight; for example, the number of calls made between the Caller and Receiver over a given period of time.
+ 
+<TABLE border=1>
+<TR> <TH>  </TH> <TH> ID_source </TH> <TH> ID_destn </TH> <TH> Weight </TH> </TR>
+  <TR> <TD align="right"> 1 </TD> <TD align="right"> 101 </TD> <TD align="right"> 105 </TD> <TD align="right">  5 </TD></TR>
+  <TR> <TD align="right"> 2 </TD> <TD align="right"> 105 </TD> <TD align="right"> 101 </TD> <TD align="right">  20 </TD></TR>
+  <TR> <TD align="right"> 3 </TD> <TD align="right"> 34 </TD> <TD align="right"> 101 </TD> <TD align="right">  1 </TD></TR>
+  <TR> <TD align="right"> 4 </TD> <TD align="right"> 91 </TD> <TD align="right"> 34 </TD> <TD align="right"> 3 </TD></TR>
+  <TR> <TD align="right"> 5 </TD> <TD align="right"> 104 </TD> <TD align="right"> 101 </TD> <TD align="right"> 10 </TD></TR>
+</TABLE>
+
+ Many interesting analysis will often want to look at different features of the network across different types of nodes/vertices. These node types can be included in a separate file, with one row for each node id. For example, we could include the gender of each cell ID as shown below. 
+
+<TABLE border=1>
+<TR> <TH> ID </TH> <TH> Gender </TH> </TR>
+<TR> <TD> 34 </TD> <TD> Male </TD> </TR>
+<TR> <TD> 91 </TD> <TD> Female </TD> </TR>
+<TR> <TD> 101 </TD> <TD> Female </TD> </TR>
+<TR> <TD> 104 </TD> <TD> Female </TD> </TR>
+<TR> <TD> 105 </TD> <TD> Male </TD> </TR>
+
+</TABLE>
+
+The code below works with a real-world network data-set of the top 500 commercial airports in the United States.  This dataset was used in:
+
+> Colizza, V., Pastor-Satorras, R., Vespignani, A., 2007. Reaction-diffusion processes and metapopulation models in heterogeneous networks. Nature Physics 3, 276-282) 
+
+but I found it through this [blog](http://toreopsahl.com/datasets/#usairports). Edges represent flights scheduled between two airports in 2002, and edge-weights show the number of seats on the flights. The data are available for download [here](https://sites.google.com/site/cxnets/usairtransportationnetwork). A snapshot of the first few rows of the data are also shown below. We'll be using this data-set to demonstrate some basic network analysis in `R`.
+
+## igraph
+
+#### 1. Import required packages
+Note: to install these packages type `install.packages("package_name_in_quotes")`
+
+```{r,warning=FALSE}
+library(data.table) #Not a network package, but highly recommended for anyone using R.
+library(igraph) #Network package
+```
+
+#### 2. Load the data into R
+Note: after downloading the airport network dataset, I 'squeezed' the multiple white-spaces using the `bash` command below to give a space separated text file to work with. 
+
+`bash> cat US_largest500_airportnetwork.txt | tr -s ' ' > example_list.txt`
+
+```{r,eval=FALSE}
+setwd('/home/username/path_to_data_folder')
+edges = fread('edge_list.txt',skip = 1) #read in edge list data, skip header row. 
+setnames(d,c("V1","V2","V3"),c("source","dest","weight")) #rename fields
+print(edges)
+```
+
+```{r,echo=FALSE}
+edges = fread("~/Downloads/example_graph.txt")
+setnames(edges,c("V1","V2","V3"),c("source","dest","weight")) #rename fields
+print(edges)
+```
+
+As mentioned above, if there was other information about the vertices to include in the analysis (for example, the size of each airport) this could be loaded separately.
+ 
+```{r,eval=FALSE}
+vertices = fread('vertex_characteristics.txt',skip=1) #read in vertex information
+setnames(vertices,c("V1","V2"),c("source","size") #rename fields
+vertices[,dest:=source] #creating a duplicate field so can easily join to edge-list data if need be. 
+
+```
+
+#### 3. Creating an igraph object
+
+We will now create the graph object in R using the command `graph.data.frame`. The first argument to `graph.data.frame` is the edgelist data (and any edge characteristics you might also like to include (such as the `weight` variable in this example). We can include vertex characteristics through the optional argument `vertices` (the first column of which will be used as the vertex name/ID). See `?graph.data.frame` for more details. 
+
+```{r}
+#create the graph object
+g = graph.data.frame(edges, directed=TRUE) #weights are included as additional attribute
+#If there was vertex information it would be: 
+#graph.data.frame(edges,directed=TRUE,vertices=vertices)
+```
+
+Print out some basic checks to make sure everything looks okay. This will also give a feel for how to refer to different elements of the graph object in `igraph`. 
+
+```{r}
+print(g)
+vcount(g) #number of vertices/nodes
+ecount(g) #number of edges
+head(V(g)$name) #show vertex names
+head(E(g)$weight) #show edge weights
+```
+
+
+Side note, you can also create an adjency matrix representation of the graph object just created using the function `get.adjacency`. 
+```
+get.adjacency(g)
+```
+
+#### 4. Basic analysis
+
+Different metrics for measuring things like connectedness or the importance of different nodes are also easy to create in `igraph`.  For example, to calculate out- and in-degree for the graph, the commands are:
+
+```{r}
+outdeg = degree(g,mode="out")
+indeg = degree(g,mode="in")
+```
+
+As a check, we can also construct out-degree from the edge-list directly to make sure the same result is produced. 
+
+```{r}
+#igraph
+head(sort(degree(g,mode="out"),decreasing=TRUE))
+#data.table
+edges[,.N,by="source"][order(-N)][1:6]
+```
+
+Many more sophisticated algorithms are also built into `igraph` which I won't go into detail here. But the often used `pagerank` alogrith can be run using:
+
+
+```{r}
+pagerank = page.rank(g)
+head(sort(pagerank$vector,decreasing=TRUE))
+```
+
+
+## Community Detection Example and plotting
+
+Finally, in this section I'll run through a more detailed example of a community detection analysis using `igraph`. A few different options for community algorithms are described [here](http://stackoverflow.com/questions/9471906/what-are-the-differences-between-community-detection-algorithms-in-igraph). These algorithms can also be useful way to visualise large networks (note that certain algorithms will not be very efficient if you are working with a very large network). 
+
+First, let's run the community detection algoritm. 
+
+```{r}
+comm= edge.betweenness.community(g) #the community algorithm
+#comm = infomap.community(g) #an alternate algorithm to also try. 
+#table(comm$membership) #quick check of the communities size. 
+```
+
+The next few lines create a `data.table` mapping each node in the network to it's assigned community. 
+
+```{r}
+mapping = as.data.table(data.frame(name=as.integer(comm$names),community=as.integer(comm$membership)))
+counts = mapping[,.N,by="community"] #look at how many communities were identified, and their size. 
+counts[order(-N)][1:10] 
+```
+
+In my (limited) experience, visualizing networks is not easy. More often than not, for any reasonably sized data-set, a simple `plot(graph)` will print out a pretty ordinary and in some cases completely illegible visualisation of a network (though some packages may be better than others here).
+
+```{r,fig.width=10,fig.height=10}
+plot(g)
+```
+
+The approach I'm taking below is to first drop all nodes that do not belong to the 'larger' communities, where I'm defining large as 5 or more nodes.
+
+```{r}
+drop = merge(mapping,counts[N<5],by="community") #Nodes in the smallest communities
+keep = merge(mapping,counts[N>=5],by="community") #Nodes in the largest communities
+g2 = delete.vertices(g,which(V(g)$name %in% drop$name)) #create a smaller graph by deleting vertices. 
+```
+
+The clunky code next assigns a sensible colour scheme to each community. When plotting a large amount of information, changing the alpha or transperancy of colours I've found can go a very long way. Simple tricks like printing out the community names can also help. Package help-manuals can be your best friend when it comes to tweaking the visualistion. 
+
+```{r}
+library(grDevices,colorRAmps)
+c1 = comm$membership[which(V(g)$name %in% keep$name)] #list of community names
+c2 = data.table(community=unique(keep$community),color=rainbow(length(unique(keep$community)),alpha=0.4)) #assign each community a colour. 
+print(c2)
+colors = as.character.factor(factor(c1,labels=unique(c2$color)))
+```
+
+Finally, plot the communities. 
+
+```{r,fig.width=10,fig.height=10}
+grey(0.2,alpha=0.2) #find code for transperant grey for edges. 
+plot(g2,
+     vertex.size=2,
+     edge.arrow.size=0,
+     edge.arrow.width=0,
+     edge.color="#33333333",
+     vertex.label=c1, 
+     vertex.label.color=colors,
+     vertex.color= colors,
+     vertex.frame.color=NA,
+     vertex.shape="none",
+     main="")
+```
+
